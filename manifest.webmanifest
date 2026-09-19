@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "Kenai",
+  "short_name": "Kenai",
+  "description": "Control compartido de los remedios de Kenai",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fdf6ee",
+  "theme_color": "#e07a3f",
+  "gcm_sender_id": "103953800507",
+  "icons": [
+    {
+      "src": "kenai-icon-animated.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
