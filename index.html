@@ -349,6 +349,20 @@
   .notify-card{display:flex;align-items:center;gap:12px}.notify-icon{font-size:27px}.notify-copy{flex:1}.notify-copy strong{display:block;font-size:14px}.notify-copy span{display:block;color:var(--ink-soft);font-size:12px;line-height:1.35;margin-top:2px}.notify-btn{border:0;border-radius:10px;background:var(--accent-soft);color:var(--accent);font-weight:750;padding:9px 11px;cursor:pointer;white-space:nowrap}.notify-btn.enabled{background:var(--good-soft);color:var(--good)}
   .modal-backdrop{position:fixed;inset:0;background:rgba(25,18,13,.45);display:none;align-items:flex-end;justify-content:center;padding:16px;z-index:50}.modal-backdrop.open{display:flex}.confirm-sheet{width:min(100%,488px);background:var(--card);border-radius:20px;padding:20px;box-shadow:0 18px 60px rgba(0,0,0,.25)}.confirm-sheet h2{font-size:19px;margin:0 0 6px}.confirm-sheet p{font-size:14px;color:var(--ink-soft);line-height:1.45;margin:0 0 18px}.modal-actions{display:grid;grid-template-columns:1fr 1.4fr;gap:8px}.secondary-btn{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:12px;padding:12px;font-weight:700}.danger-state{color:var(--warn)}
   @media(min-width:600px){.modal-backdrop{align-items:center}}
+
+  /* Registro de Kenai */
+  .kenai-log-card{margin-bottom:14px}
+  .kenai-log-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+  .kenai-log-head h2{margin:0;font-size:18px}
+  .kenai-log-subtitle{margin:3px 0 0;color:var(--ink-soft);font-size:13px}
+  .kenai-add-btn{width:auto;white-space:nowrap;padding:10px 12px}
+  .kenai-event{display:flex;gap:10px;padding:12px 0;border-top:1px solid var(--line)}
+  .kenai-event:first-child{border-top:0}
+  .kenai-event-icon{font-size:18px;line-height:1.2}
+  .kenai-event-body{flex:1;min-width:0}
+  .kenai-event-text{font-size:14px;font-weight:700;white-space:pre-wrap;overflow-wrap:anywhere}
+  .kenai-event-meta{font-size:12px;color:var(--ink-soft);margin-top:4px}
+
 </style>
 </head>
 <body>
@@ -382,7 +396,19 @@
       </div>
     </section>
     <section class="tab-panel" id="tab-meds"><div id="medsList"></div></section>
-    <section class="tab-panel" id="tab-history"><div id="globalHistory"></div></section>
+    <section class="tab-panel" id="tab-history">
+      <div class="card kenai-log-card" id="kenaiLogCard">
+        <div class="kenai-log-head">
+          <div>
+            <h2>Registro de Kenai</h2>
+            <p class="kenai-log-subtitle">Síntomas y cosas que le pasaron</p>
+          </div>
+          <button class="primary-btn kenai-add-btn" id="addEventButton" type="button">+ Agregar</button>
+        </div>
+        <div id="kenaiEvents"></div>
+      </div>
+      <div id="globalHistory"></div>
+    </section>
   </main>
 
   <nav class="bottom-nav" aria-label="Navegación principal">
@@ -458,7 +484,8 @@ const INITIAL_STATE = {
       days: 10
     }
   ],
-  log: {}
+  log: {},
+  events: []
 };
 
 /* ---------- Utilidades de fecha ---------- */
@@ -640,6 +667,45 @@ function renderRewards(){
   });
 }
 
+function escapeHtml(value){
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function renderKenaiEvents(){
+  const wrap = document.getElementById("kenaiEvents");
+  if (!wrap) return;
+
+  const events = (STATE.events || [])
+    .slice()
+    .sort((a,b) => new Date(b.at) - new Date(a.at));
+
+  if (!events.length){
+    wrap.innerHTML = `<div class="empty-today">Todavía no hay registros.</div>`;
+    return;
+  }
+
+  wrap.innerHTML = "";
+  events.forEach(event => {
+    const row = document.createElement("div");
+    row.className = "kenai-event";
+    const date = new Date(event.at);
+    const dateText = date.toLocaleDateString("es-AR", {day:"numeric", month:"short", year:"numeric"});
+    const timeText = date.toLocaleTimeString("es-AR", {hour:"2-digit", minute:"2-digit"});
+    row.innerHTML = `
+      <div class="kenai-event-icon">🐾</div>
+      <div class="kenai-event-body">
+        <div class="kenai-event-text">${escapeHtml(event.text)}</div>
+        <div class="kenai-event-meta">${dateText} · ${timeText}${event.by ? ` · ${escapeHtml(event.by)}` : ""}</div>
+      </div>`;
+    wrap.appendChild(row);
+  });
+}
+
 function renderGlobalHistory(){
   const wrap=document.getElementById("globalHistory");
   const entries=Object.entries(STATE.log).filter(([,e])=>e&&e.checked).sort((a,b)=>new Date(b[1].at||0)-new Date(a[1].at||0));
@@ -720,19 +786,29 @@ function renderAll(){
   renderToday();
   renderRewards();
   renderMeds();
+  renderKenaiEvents();
   renderGlobalHistory();
   const chip = document.getElementById("nameChip");
-  chip.textContent = loadName() || "Poner mi nombre";
+  chip.textContent = loadName() || "¿Quién sos?";
 }
 
 /* ---------- Interacción ---------- */
 async function ensureName(){
   let n = loadName();
   if (!n){
-    n = prompt("¿Cómo te llamás? (para saber quién dio cada dosis)", "");
+    n = prompt("¿Quién sos?", "");
     if (n){ n = n.trim(); saveName(n); }
   }
   return n || "Alguien";
+}
+  async function askNameOnFirstVisit(){
+  if (!loadName()) {
+    const n = prompt("¿Quién sos?", "");
+    if (n && n.trim()) {
+      saveName(n.trim());
+      renderAll();
+    }
+  }
 }
 
 async function onToggle(e){
@@ -771,6 +847,23 @@ document.querySelectorAll('.nav-btn').forEach(btn=>btn.addEventListener('click',
 document.getElementById("nameChip").addEventListener("click", async ()=>{
   const n = prompt("¿Cómo te llamás?", loadName()||"");
   if (n !== null && n.trim()){ saveName(n.trim()); renderAll(); }
+});
+
+document.getElementById("addEventButton").addEventListener("click", async ()=>{
+  const text = prompt("¿Qué le pasó a Kenai?", "");
+  if (text === null || !text.trim()) return;
+
+  const name = await ensureName();
+  STATE.events = STATE.events || [];
+  STATE.events.push({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+    text: text.trim(),
+    at: new Date().toISOString(),
+    by: name
+  });
+
+  renderAll();
+  await persist();
 });
 
 /* ---------- Persistencia con Firebase Firestore ---------- */
@@ -837,7 +930,10 @@ function firebaseConfigured(){
 async function persist(){
   if (firebaseReady && docRef){
     try{
-      await docRef.set({ log: STATE.log }, { merge: false });
+      await docRef.set({
+        log: STATE.log,
+        events: STATE.events || []
+      }, { merge: false });
     }catch(err){
       console.error("Firestore write failed", err);
       try{ localStorage.setItem("kenai_state", JSON.stringify(STATE)); }catch(e){}
@@ -853,9 +949,11 @@ function subscribeRealtime(){
     if (snap.exists){
       const data = snap.data();
       STATE.log = data && data.log ? data.log : {};
+      STATE.events = data && Array.isArray(data.events) ? data.events : [];
     } else {
-      docRef.set({ log: {} }).catch(()=>{});
+      docRef.set({ log: {}, events: [] }).catch(()=>{});
       STATE.log = {};
+      STATE.events = [];
     }
     renderAll();
     applyingRemote = false;
@@ -872,7 +970,7 @@ async function init(){
     document.getElementById("offlineNote").style.display = "block";
     try{
       const local = localStorage.getItem("kenai_state");
-      if (local){ STATE = JSON.parse(local); renderAll(); }
+      if (local){ STATE = JSON.parse(local); STATE.events = STATE.events || []; renderAll(); }
     }catch(e){}
     return;
   }
@@ -891,12 +989,14 @@ async function init(){
     document.getElementById("offlineNote").style.display = "block";
     try{
       const local = localStorage.getItem("kenai_state");
-      if (local){ STATE = JSON.parse(local); renderAll(); }
+      if (local){ STATE = JSON.parse(local); STATE.events = STATE.events || []; renderAll(); }
     }catch(e){}
   }
 }
 
-window.addEventListener("DOMContentLoaded", init);
-</script>
+window.addEventListener("DOMContentLoaded", async () => {
+  await init();
+  await askNameOnFirstVisit();
+});</script>
 </body>
 </html>
